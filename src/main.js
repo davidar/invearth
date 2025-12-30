@@ -6,13 +6,13 @@ import { createAtmosphere } from './lib/atmosphere.js';
 
 // Configuration
 const CONFIG = {
-  // Great Ocean Road, Victoria, Australia
+  // Cape Otway Lighthouse, Victoria, Australia
   location: {
-    lat: -38.6772,
-    lon: 143.1051,
+    lat: -38.8539766,
+    lon: 143.5105863,
   },
   earthRadius: 6371, // km, 1 unit = 1 km
-  terrainRadius: 3, // km radius of local terrain patch
+  terrainRadius: 30, // km radius of local terrain patch
 };
 
 // Scene setup
@@ -33,9 +33,9 @@ const phi = (90 - lat) * (Math.PI / 180);
 // Texture flip + globe rotation cancel out the offset, just negate lon
 const theta = -lon * Math.PI / 180;
 
-// Camera position slightly inside sphere
+// Camera position inside sphere - higher up for clearer view
 const cameraPos = new THREE.Vector3();
-cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 10, phi, theta);
+cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 5, phi, theta); // 5km inside sphere
 camera.position.copy(cameraPos);
 
 // Up vector points toward center (inverted gravity)
@@ -70,9 +70,9 @@ async function init() {
     const globe = await createGlobe(CONFIG.earthRadius, false);
     scene.add(globe);
 
-    // Create local terrain (placeholder for now, needs Mapbox key)
-    // const terrain = await createTerrain(CONFIG.location, CONFIG.terrainRadius);
-    // scene.add(terrain);
+    // Create local terrain from Mapbox
+    const terrain = await createTerrain(CONFIG.location, CONFIG.terrainRadius);
+    scene.add(terrain);
 
     // Setup atmosphere/fog
     const atmosphere = createAtmosphere(scene, CONFIG.earthRadius);
