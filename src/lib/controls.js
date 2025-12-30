@@ -1,69 +1,108 @@
 import * as THREE from 'three';
 
 /**
- * Custom mouselook controls - camera rotates but doesn't move
- * Works with inverted "up" direction
+ * Click-and-drag mouselook controls for inverted sphere
+ * Works without pointer lock (Flatpak compatible)
  */
 export function setupControls(camera, domElement) {
-  let isLocked = false;
+  let isDragging = false;
+  let prevX = 0;
+  let prevY = 0;
 
-  // Store initial camera orientation
-  const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const PI_2 = Math.PI / 2;
+  // Track cumulative pitch to clamp it
+  let pitch = 0;
+  const maxPitch = Math.PI / 2 - 0.01;
 
   // Sensitivity
-  const sensitivity = 0.002;
+  const sensitivity = 0.003;
 
-  // Get initial orientation from camera
-  euler.setFromQuaternion(camera.quaternion);
+  // Store the "up" direction (toward sphere center, set by main.js)
+  const upVector = camera.up.clone();
 
-  function onMouseMove(event) {
-    if (!isLocked) return;
+  // Temp quaternions for rotation
+  const yawQuat = new THREE.Quaternion();
+  const pitchQuat = new THREE.Quaternion();
+  const rightVector = new THREE.Vector3();
 
-    const movementX = event.movementX || 0;
-    const movementY = event.movementY || 0;
-
-    // Yaw (left/right) - rotate around the "up" axis (toward center)
-    euler.y -= movementX * sensitivity;
-
-    // Pitch (up/down) - limited to prevent flipping
-    euler.x -= movementY * sensitivity;
-    euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
-
-    camera.quaternion.setFromEuler(euler);
-  }
-
-  function onPointerLockChange() {
-    isLocked = document.pointerLockElement === domElement;
-
-    const info = document.getElementById('info');
-    if (info) {
-      info.textContent = isLocked ? 'ESC to release mouse' : 'Click to look around';
+  function onMouseDown(event) {
+    if (event.button === 0) { // Left click
+      isDragging = true;
+      prevX = event.clientX;
+      prevY = event.clientY;
+      domElement.style.cursor = 'grabbing';
     }
   }
 
-  function onClick() {
-    domElement.requestPointerLock();
+  function onMouseUp(event) {
+    if (event.button === 0) {
+      isDragging = false;
+      domElement.style.cursor = 'grab';
+    }
   }
 
+  function onMouseMove(event) {
+    if (!isDragging) return;
+
+    const movementX = event.clientX - prevX;
+    const movementY = event.clientY - prevY;
+    prevX = event.clientX;
+    prevY = event.clientY;
+
+    // Yaw: rotate around the up vector (toward center)
+    yawQuat.setFromAxisAngle(upVector, movementX * sensitivity);
+    camera.quaternion.premultiply(yawQuat);
+
+    // Calculate new pitch and clamp it
+    const newPitch = pitch + movementY * sensitivity;
+    if (Math.abs(newPitch) < maxPitch) {
+      pitch = newPitch;
+
+      // Get camera's right vector for pitch rotation
+      rightVector.set(1, 0, 0).applyQuaternion(camera.quaternion);
+
+      // Pitch: rotate around the right vector
+      pitchQuat.setFromAxisAngle(rightVector, movementY * sensitivity);
+      camera.quaternion.premultiply(pitchQuat);
+    }
+
+    // Keep camera up vector consistent
+    camera.up.copy(upVector);
+  }
+
+  function onMouseLeave() {
+    isDragging = false;
+    domElement.style.cursor = 'grab';
+  }
+
+  // Set initial cursor
+  domElement.style.cursor = 'grab';
+
   // Set up event listeners
+  domElement.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('pointerlockchange', onPointerLockChange);
-  domElement.addEventListener('click', onClick);
+  domElement.addEventListener('mouseleave', onMouseLeave);
+
+  // Update info text
+  const info = document.getElementById('info');
+  if (info) {
+    info.textContent = 'Click and drag to look around';
+  }
 
   return {
     update() {
-      // No continuous update needed for mouselook
+      // No continuous update needed
     },
 
     dispose() {
+      domElement.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('pointerlockchange', onPointerLockChange);
-      domElement.removeEventListener('click', onClick);
+      domElement.removeEventListener('mouseleave', onMouseLeave);
     },
 
-    get isLocked() {
-      return isLocked;
+    get isDragging() {
+      return isDragging;
     }
   };
 }
