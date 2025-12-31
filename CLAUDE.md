@@ -80,12 +80,29 @@ north = east.cross(up).normalize()
   - This prevents the night side from "punching a hole" through the atmosphere
   - Combined factor = average of local and remote day factors
 
+### Camera Animation System
+- Keyframe-based camera flythrough in `src/lib/cameraAnimation.js`
+- Each keyframe specifies: camera position (lat/lon/altitude) + target to look at (lookAtLat/lookAtLon)
+- Much simpler than pitch/yaw: just specify where to look, math handles the rest
+- Smooth interpolation between keyframes using lerp for position and lookAt target
+- Easing via smoothstep function for natural acceleration/deceleration
+- Controls: Space (play/pause), R (reset), 1-7 (jump to keyframe)
+- Default tour: Australia → rise → Asia (night) → N.America → S.America → Antarctica → return
+
+### Atmosphere at High Altitude
+- Atmosphere shell: inner radius = EARTH_RADIUS - 50km, outer radius = EARTH_RADIUS
+- When camera is INSIDE inner radius (altitude > 50km), it's in the "void" above atmosphere
+- Shader handles three cases: camera in void, camera in atmosphere, camera outside globe
+- At high altitude, rays pass through atmosphere shell on far side only
+- This prevents fog from becoming opaque wall when flying high
+
 ## File Structure
 - `src/main.js` - Scene setup, camera positioning, lighting config
 - `src/lib/terrain.js` - Quadtree LOD terrain with Mapbox tiles
 - `src/lib/globe.js` - Inverted sphere with day/night textures (Mapbox satellite + night lights)
 - `src/lib/controls.js` - WASD movement + click-and-drag mouselook
 - `src/lib/atmosphere.js` - Shader-based atmospheric scattering + day/night lighting
+- `src/lib/cameraAnimation.js` - Keyframe-based camera flythrough animation
 
 ## Gotchas & Lessons Learned
 1. **Offset vs altitude confusion**: LARGER offset = HIGHER altitude (closer to center). See "CRITICAL" section above.
@@ -98,6 +115,8 @@ north = east.cross(up).normalize()
 8. **Material consistency**: Both globe and terrain use MeshBasicMaterial (no lighting) for consistent brightness
 9. **Ring-based LOD causes z-fighting**: Use quadtree instead - tiles replace parents, never overlap
 10. **Day/night atmosphere**: When viewing night side from day side, atmosphere must account for BOTH ends of the path. Local sunlit atmosphere still scatters blue even when looking at dark terrain.
+11. **Camera orientation**: Use lookAt targeting (specify a lat/lon to look at) instead of pitch/yaw. Much easier to reason about and less error-prone.
+12. **Web Mercator polar holes**: Mapbox tiles only cover ~85° latitude. Pre-fill polar regions with appropriate colors (white for Antarctica, bluish-white for Arctic) before conversion.
 
 ## Current Location
 Cape Otway Lighthouse, Victoria, Australia
@@ -109,6 +128,7 @@ Cape Otway Lighthouse, Victoria, Australia
 - ~~Movement controls~~ ✓ Done (WASD + Q/E altitude + mouselook)
 - ~~Atmosphere rendering~~ ✓ Done (shader-based thin shell scattering)
 - ~~Time of day lighting~~ ✓ Done (day/night with city lights)
+- ~~Camera flythrough animation~~ ✓ Done (keyframe-based tour of the globe)
 - Dynamic tile loading as you move
 - Clouds layer
 - Animated day/night cycle (sun rotation over time)
