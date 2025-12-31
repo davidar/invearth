@@ -17,7 +17,7 @@ const CONFIG = {
 
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // Sky blue for now
+// Background color set by atmosphere.js
 
 // Camera
 const camera = new THREE.PerspectiveCamera(
@@ -66,21 +66,19 @@ scene.add(directionalLight);
 // Initialize scene components
 async function init() {
   try {
-    // Create the inverted globe (false = no debug overlay)
-    const globe = await createGlobe(CONFIG.earthRadius, false);
+    // Setup atmosphere FIRST to get uniforms for shaders
+    const atmosphere = createAtmosphere(scene, CONFIG.earthRadius);
+
+    // Create the inverted globe with atmospheric scattering
+    const globe = await createGlobe(CONFIG.earthRadius, false, atmosphere.uniforms);
     scene.add(globe);
 
-    // Create LOD terrain from Mapbox
-    const terrain = await createTerrain(CONFIG.location);
+    // Create LOD terrain with atmospheric scattering
+    const terrain = await createTerrain(CONFIG.location, atmosphere.uniforms);
     scene.add(terrain);
     console.log('Terrain children:', terrain.children.length, terrain.children.map(c => c.name));
 
-    // DEBUG test sphere removed - no longer needed
-
-    // Setup atmosphere/fog
-    const atmosphere = createAtmosphere(scene, CONFIG.earthRadius);
-
-    // Setup camera controls (mouselook only)
+    // Setup camera controls (mouselook + WASD)
     const controls = setupControls(camera, renderer.domElement);
 
     // Hide loading screen
@@ -90,6 +88,10 @@ async function init() {
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
+
+      // Update atmosphere with current camera position
+      atmosphere.update(camera);
+
       renderer.render(scene, camera);
     }
     animate();

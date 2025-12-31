@@ -1,7 +1,11 @@
 import * as THREE from 'three';
+import { atmosphereShaderChunk } from './atmosphere.js';
 
 // Mapbox API configuration
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+
+// Atmosphere uniforms (set by createTerrain)
+let atmosphereUniforms = null;
 
 // Earth radius in km (1 unit = 1 km)
 const EARTH_RADIUS = 6371;
@@ -39,8 +43,11 @@ const DEBUG_COLORS = {
 /**
  * Creates multi-LOD terrain using quadtree subdivision
  * @param {Object} location - { lat, lon } camera position
+ * @param {Object} atmoUniforms - atmosphere uniforms for shader
  */
-export async function createTerrain(location) {
+export async function createTerrain(location, atmoUniforms = null) {
+  atmosphereUniforms = atmoUniforms;
+
   if (!MAPBOX_TOKEN) {
     console.warn('No Mapbox token provided. Set VITE_MAPBOX_TOKEN in .env');
     return createPlaceholderTerrain(location);
@@ -382,10 +389,48 @@ function createSphericalTileMesh(tileData) {
   const texture = new THREE.CanvasTexture(satCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
 
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    side: THREE.DoubleSide,
-  });
+  let material;
+
+  if (atmosphereUniforms) {
+    // Use atmospheric scattering shader
+    material = new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: texture },
+        ...atmosphereUniforms
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vUv = uv;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D map;
+        ${atmosphereShaderChunk}
+
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec4 texColor = texture2D(map, vUv);
+          vec3 finalColor = applyAtmosphere(texColor.rgb, vWorldPosition);
+          gl_FragColor = vec4(finalColor, texColor.a);
+        }
+      `,
+      side: THREE.DoubleSide,
+    });
+  } else {
+    // Fallback to basic material
+    material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+    });
+  }
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = `tile-${tileData.x}-${tileData.y}-z${zoom}`;

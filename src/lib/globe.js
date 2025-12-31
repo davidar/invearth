@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { atmosphereShaderChunk } from './atmosphere.js';
 
 // Mapbox API configuration
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
@@ -188,30 +189,67 @@ function createGridTexture(width = 2048, height = 1024) {
 
 /**
  * Creates an inverted Earth sphere - we're on the inside looking in
+ * @param {number} radius - Earth radius in km
+ * @param {boolean} useDebugTexture - Use debug grid texture
+ * @param {Object} atmosphereUniforms - Atmosphere uniforms for shader
  */
-export async function createGlobe(radius, useDebugTexture = false) {
+export async function createGlobe(radius, useDebugTexture = false, atmosphereUniforms = null) {
   // High segment count for smooth sphere at this scale
   const geometry = new THREE.SphereGeometry(radius, 128, 64);
 
   let material;
+  let texture;
 
   try {
     // Use Mapbox satellite tiles for consistency with terrain
     console.log('Loading Mapbox globe texture...');
-    const mapboxTexture = await createMapboxGlobeTexture();
+    texture = await createMapboxGlobeTexture();
 
     // Flip texture horizontally for BackSide rendering
-    mapboxTexture.wrapS = THREE.RepeatWrapping;
-    mapboxTexture.repeat.x = -1;
-
-    material = new THREE.MeshBasicMaterial({
-      map: mapboxTexture,
-      side: THREE.BackSide,
-    });
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.repeat.x = -1;
     console.log('Mapbox globe texture loaded');
   } catch (error) {
     console.warn('Failed to load Mapbox globe texture, using grid fallback', error);
-    const texture = createGridTexture();
+    texture = createGridTexture();
+  }
+
+  if (atmosphereUniforms) {
+    // Use atmospheric scattering shader
+    material = new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: texture },
+        ...atmosphereUniforms
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vUv = uv;
+          // Flip U coordinate for BackSide rendering
+          vUv.x = 1.0 - vUv.x;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D map;
+        ${atmosphereShaderChunk}
+
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec4 texColor = texture2D(map, vUv);
+          vec3 finalColor = applyAtmosphere(texColor.rgb, vWorldPosition);
+          gl_FragColor = vec4(finalColor, texColor.a);
+        }
+      `,
+      side: THREE.BackSide,
+    });
+  } else {
     material = new THREE.MeshBasicMaterial({
       map: texture,
       side: THREE.BackSide,
