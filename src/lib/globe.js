@@ -64,6 +64,33 @@ async function createMapboxGlobeTexture() {
   const srcData = ctx.getImageData(0, 0, width, height);
   const dstData = eqCtx.createImageData(eqWidth, eqHeight);
 
+  // Pre-fill with appropriate colors for polar regions
+  // Web Mercator can't represent beyond ~85° latitude
+  const mercatorLimit = 85;
+  for (let y = 0; y < eqHeight; y++) {
+    const lat = 90 - (y / eqHeight) * 180;
+    let r, g, b;
+
+    if (lat > mercatorLimit) {
+      // Arctic - ocean with some ice (bluish-white)
+      r = 180; g = 200; b = 220;
+    } else if (lat < -mercatorLimit) {
+      // Antarctica - ice sheet (white with slight blue tint)
+      r = 240; g = 245; b = 250;
+    } else {
+      // Ocean blue fallback
+      r = 26; g = 74; b = 110;
+    }
+
+    for (let x = 0; x < eqWidth; x++) {
+      const idx = (y * eqWidth + x) * 4;
+      dstData.data[idx] = r;
+      dstData.data[idx + 1] = g;
+      dstData.data[idx + 2] = b;
+      dstData.data[idx + 3] = 255;
+    }
+  }
+
   // Convert Web Mercator to Equirectangular
   for (let dstY = 0; dstY < eqHeight; dstY++) {
     // Equirectangular latitude (-90 to 90)

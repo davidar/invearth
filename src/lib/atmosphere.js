@@ -19,6 +19,8 @@ export const atmosphereShaderChunk = `
   // Calculate path length through atmospheric shell
   // Atmosphere is a shell from (globeRadius - thickness) to globeRadius
   float getAtmospherePathLength(vec3 rayOrigin, vec3 rayDir, float innerRadius, float outerRadius) {
+    float cameraRadius = length(rayOrigin);
+
     // Ray-sphere intersection for both inner and outer atmosphere bounds
     float a = dot(rayDir, rayDir);
     float b = 2.0 * dot(rayOrigin, rayDir);
@@ -33,35 +35,56 @@ export const atmosphereShaderChunk = `
 
     float pathLength = 0.0;
 
-    if (discriminantOuter >= 0.0) {
-      float sqrtDiscOuter = sqrt(discriminantOuter);
-      float t1Outer = (-b - sqrtDiscOuter) / (2.0 * a);
-      float t2Outer = (-b + sqrtDiscOuter) / (2.0 * a);
-
-      // We're inside the sphere, so we care about the positive intersection
-      float tEnter = 0.0;  // Start from camera
-      float tExit = max(t1Outer, t2Outer);
-
-      if (discriminantInner >= 0.0) {
-        // Ray also intersects inner sphere (atmosphere bottom)
+    // Case 1: Camera is inside the void (above atmosphere ceiling)
+    if (cameraRadius < innerRadius) {
+      // We're in the center void - need to pass through atmosphere shell to reach globe
+      if (discriminantInner >= 0.0 && discriminantOuter >= 0.0) {
         float sqrtDiscInner = sqrt(discriminantInner);
-        float t1Inner = (-b - sqrtDiscInner) / (2.0 * a);
-        float t2Inner = (-b + sqrtDiscInner) / (2.0 * a);
+        float sqrtDiscOuter = sqrt(discriminantOuter);
 
-        // Path through atmosphere = path to outer - path through void
-        float tInnerEnter = max(0.0, min(t1Inner, t2Inner));
-        float tInnerExit = max(t1Inner, t2Inner);
+        // Find where ray enters and exits each sphere
+        float tInnerNear = (-b - sqrtDiscInner) / (2.0 * a);
+        float tInnerFar = (-b + sqrtDiscInner) / (2.0 * a);
+        float tOuterNear = (-b - sqrtDiscOuter) / (2.0 * a);
+        float tOuterFar = (-b + sqrtDiscOuter) / (2.0 * a);
 
-        if (tInnerEnter > 0.0 && tInnerEnter < tExit) {
-          // Ray exits atmosphere, goes through void, re-enters
-          pathLength = tInnerEnter + (tExit - tInnerExit);
-        } else {
-          pathLength = tExit;
+        // Path through atmosphere = from inner sphere exit to outer sphere exit
+        // (both on the far side of us)
+        float tEnterAtmo = max(0.0, tInnerFar);  // Exit inner sphere = enter atmosphere
+        float tExitAtmo = tOuterFar;              // Exit outer sphere = exit atmosphere
+
+        if (tExitAtmo > tEnterAtmo) {
+          pathLength = tExitAtmo - tEnterAtmo;
         }
-      } else {
-        // Ray stays within atmosphere shell entirely
-        pathLength = tExit;
       }
+    }
+    // Case 2: Camera is in the atmosphere shell
+    else if (cameraRadius < outerRadius) {
+      if (discriminantOuter >= 0.0) {
+        float sqrtDiscOuter = sqrt(discriminantOuter);
+        float tOuterFar = (-b + sqrtDiscOuter) / (2.0 * a);
+
+        if (discriminantInner >= 0.0) {
+          // Ray might pass through void
+          float sqrtDiscInner = sqrt(discriminantInner);
+          float tInnerNear = (-b - sqrtDiscInner) / (2.0 * a);
+          float tInnerFar = (-b + sqrtDiscInner) / (2.0 * a);
+
+          if (tInnerNear > 0.0 && tInnerNear < tOuterFar) {
+            // Ray enters void, then exits back into atmosphere
+            pathLength = tInnerNear + (tOuterFar - tInnerFar);
+          } else {
+            pathLength = tOuterFar;
+          }
+        } else {
+          // Ray stays in atmosphere
+          pathLength = tOuterFar;
+        }
+      }
+    }
+    // Case 3: Camera is outside (below globe surface) - shouldn't happen but handle gracefully
+    else {
+      pathLength = 0.0;
     }
 
     return max(0.0, pathLength);

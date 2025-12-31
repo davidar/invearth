@@ -3,6 +3,7 @@ import { createGlobe } from './lib/globe.js';
 import { createTerrain } from './lib/terrain.js';
 import { setupControls } from './lib/controls.js';
 import { createAtmosphere } from './lib/atmosphere.js';
+import { createCameraAnimation, KEYFRAMES, applyKeyframe } from './lib/cameraAnimation.js';
 
 // Configuration
 const CONFIG = {
@@ -21,7 +22,7 @@ const scene = new THREE.Scene();
 
 // Camera
 const camera = new THREE.PerspectiveCamera(
-  90, // Moderate wide angle
+  60, // Standard FOV, similar to human vision
   window.innerWidth / window.innerHeight,
   0.001, // Near plane: 1 meter
   20000  // Far plane: 20,000 km
@@ -85,13 +86,65 @@ async function init() {
     // Setup camera controls (mouselook + WASD)
     const controls = setupControls(camera, renderer.domElement);
 
+    // Setup camera animation system
+    const cameraAnim = createCameraAnimation(camera);
+
+    // Keyboard shortcuts for keyframes and animation
+    document.addEventListener('keydown', (event) => {
+      // Number keys 1-7 jump to keyframes
+      const keyNum = parseInt(event.key);
+      if (keyNum >= 1 && keyNum <= 7) {
+        cameraAnim.goToKeyframe(keyNum - 1);
+        updateInfo();
+      }
+
+      // Space toggles animation
+      if (event.code === 'Space') {
+        event.preventDefault();
+        cameraAnim.toggleAnimation();
+        updateInfo();
+      }
+
+      // R resets to beginning
+      if (event.code === 'KeyR' && !event.ctrlKey) {
+        cameraAnim.reset();
+        updateInfo();
+      }
+    });
+
+    function updateInfo() {
+      const info = document.getElementById('info');
+      if (info) {
+        if (cameraAnim.isAnimating) {
+          info.textContent = 'SPACE: pause | R: reset | 1-7: jump to keyframe';
+        } else {
+          info.textContent = 'SPACE: play animation | 1-7: keyframes | WASD/Q/E: manual control';
+        }
+      }
+    }
+    updateInfo();
+
     // Hide loading screen
     document.getElementById('loading').style.display = 'none';
+
+    // For animation timing
+    let lastTime = performance.now();
 
     // Render loop
     function animate() {
       requestAnimationFrame(animate);
-      controls.update();
+
+      const now = performance.now();
+      const deltaTime = (now - lastTime) / 1000; // Convert to seconds
+      lastTime = now;
+
+      // Update camera animation if playing
+      if (cameraAnim.isAnimating) {
+        cameraAnim.update(deltaTime);
+      } else {
+        // Manual controls only when not animating
+        controls.update();
+      }
 
       // Update atmosphere with current camera position
       atmosphere.update(camera);
