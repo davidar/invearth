@@ -69,6 +69,10 @@ async function init() {
     // Setup atmosphere FIRST to get uniforms for shaders
     const atmosphere = createAtmosphere(scene, CONFIG.earthRadius);
 
+    // Set sun position: over Pacific so Australia is in daylight, Asia at night
+    // Sun at roughly -20° lat, -150° lon (south Pacific, west of South America)
+    atmosphere.setSunPosition(-20, -150);
+
     // Create the inverted globe with atmospheric scattering
     const globe = await createGlobe(CONFIG.earthRadius, false, atmosphere.uniforms);
     scene.add(globe);

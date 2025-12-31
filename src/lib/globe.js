@@ -188,6 +188,27 @@ function createGridTexture(width = 2048, height = 1024) {
 }
 
 /**
+ * Load the night lights texture
+ */
+async function loadNightTexture() {
+  return new Promise((resolve, reject) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      '/textures/earth_nightmap.jpg',
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        // Flip horizontally to match the day texture
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.repeat.x = -1;
+        resolve(texture);
+      },
+      undefined,
+      reject
+    );
+  });
+}
+
+/**
  * Creates an inverted Earth sphere - we're on the inside looking in
  * @param {number} radius - Earth radius in km
  * @param {boolean} useDebugTexture - Use debug grid texture
@@ -198,27 +219,46 @@ export async function createGlobe(radius, useDebugTexture = false, atmosphereUni
   const geometry = new THREE.SphereGeometry(radius, 128, 64);
 
   let material;
-  let texture;
+  let dayTexture;
+  let nightTexture;
 
   try {
     // Use Mapbox satellite tiles for consistency with terrain
     console.log('Loading Mapbox globe texture...');
-    texture = await createMapboxGlobeTexture();
+    dayTexture = await createMapboxGlobeTexture();
 
     // Flip texture horizontally for BackSide rendering
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.repeat.x = -1;
+    dayTexture.wrapS = THREE.RepeatWrapping;
+    dayTexture.repeat.x = -1;
     console.log('Mapbox globe texture loaded');
   } catch (error) {
     console.warn('Failed to load Mapbox globe texture, using grid fallback', error);
-    texture = createGridTexture();
+    dayTexture = createGridTexture();
+  }
+
+  // Load night lights texture
+  try {
+    console.log('Loading night lights texture...');
+    nightTexture = await loadNightTexture();
+    console.log('Night lights texture loaded');
+  } catch (error) {
+    console.warn('Failed to load night lights texture', error);
+    // Create a simple dark texture as fallback
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000510';
+    ctx.fillRect(0, 0, 64, 32);
+    nightTexture = new THREE.CanvasTexture(canvas);
   }
 
   if (atmosphereUniforms) {
-    // Use atmospheric scattering shader
+    // Use atmospheric scattering shader with day/night blending
     material = new THREE.ShaderMaterial({
       uniforms: {
-        map: { value: texture },
+        map: { value: dayTexture },
+        nightMap: { value: nightTexture },
         ...atmosphereUniforms
       },
       vertexShader: `
@@ -236,22 +276,37 @@ export async function createGlobe(radius, useDebugTexture = false, atmosphereUni
       `,
       fragmentShader: `
         uniform sampler2D map;
+        uniform sampler2D nightMap;
         ${atmosphereShaderChunk}
 
         varying vec2 vUv;
         varying vec3 vWorldPosition;
 
         void main() {
-          vec4 texColor = texture2D(map, vUv);
-          vec3 finalColor = applyAtmosphere(texColor.rgb, vWorldPosition);
-          gl_FragColor = vec4(finalColor, texColor.a);
+          // Sample day and night textures
+          vec3 dayColor = texture2D(map, vUv).rgb;
+          vec3 nightColor = texture2D(nightMap, vUv).rgb;
+
+          // Get day/night factor based on sun position
+          float dayFactor = getDayFactor(vWorldPosition);
+
+          // Boost city lights brightness for visibility
+          nightColor *= 2.0;
+
+          // Blend between night (city lights) and day (satellite)
+          vec3 surfaceColor = mix(nightColor, dayColor, dayFactor);
+
+          // Apply atmospheric scattering
+          vec3 finalColor = applyAtmosphere(surfaceColor, vWorldPosition);
+
+          gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
       side: THREE.BackSide,
     });
   } else {
     material = new THREE.MeshBasicMaterial({
-      map: texture,
+      map: dayTexture,
       side: THREE.BackSide,
     });
   }

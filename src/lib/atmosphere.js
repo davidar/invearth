@@ -14,6 +14,7 @@ export const atmosphereShaderChunk = `
   uniform float uAtmosphereDensity;    // scattering coefficient
   uniform float uGlobeRadius;          // km, radius of globe surface
   uniform vec3 uCameraPosition;        // camera world position
+  uniform vec3 uSunDirection;          // normalized direction TO the sun
 
   // Calculate path length through atmospheric shell
   // Atmosphere is a shell from (globeRadius - thickness) to globeRadius
@@ -66,6 +67,21 @@ export const atmosphereShaderChunk = `
     return max(0.0, pathLength);
   }
 
+  // Calculate day/night factor based on surface position and sun direction
+  // Returns 1.0 for full day, 0.0 for full night, with smooth transition
+  float getDayFactor(vec3 worldPos) {
+    // Surface normal for inverted world (points outward from center)
+    vec3 surfaceNormal = normalize(worldPos);
+
+    // How much this point faces the sun
+    // Positive = facing sun (day), Negative = facing away (night)
+    float sunDot = dot(surfaceNormal, uSunDirection);
+
+    // Smooth transition at terminator
+    // -0.1 to 0.2 gives a nice gradient for the day/night boundary
+    return smoothstep(-0.1, 0.2, sunDot);
+  }
+
   // Apply atmospheric scattering to a color
   vec3 applyAtmosphere(vec3 color, vec3 worldPos) {
     vec3 rayDir = normalize(worldPos - uCameraPosition);
@@ -78,8 +94,19 @@ export const atmosphereShaderChunk = `
     // Exponential falloff based on path through atmosphere
     float scatter = 1.0 - exp(-pathLength * uAtmosphereDensity);
 
-    // Rayleigh-like effect: more scattering for shorter wavelengths (blue)
-    vec3 scatterColor = uAtmosphereColor;
+    // Day/night factors for BOTH ends of the atmospheric path
+    float localDayFactor = getDayFactor(uCameraPosition);   // Atmosphere near camera
+    float remoteDayFactor = getDayFactor(worldPos);         // Atmosphere near target
+
+    // Atmosphere scattering depends on sunlight at EITHER end of the path
+    // If local atmosphere is sunlit, we get blue scatter even looking at night side
+    // Average the two factors (could also use max for more aggressive effect)
+    float combinedDayFactor = (localDayFactor + remoteDayFactor) * 0.5;
+
+    // Atmosphere color shifts from blue (day) to dark (night)
+    vec3 dayAtmoColor = uAtmosphereColor;
+    vec3 nightAtmoColor = vec3(0.02, 0.02, 0.05); // Very dark blue-ish
+    vec3 scatterColor = mix(nightAtmoColor, dayAtmoColor, combinedDayFactor);
 
     // Blend original color with atmosphere
     return mix(color, scatterColor, scatter);
@@ -138,7 +165,8 @@ export function createAtmosphere(scene, earthRadius) {
     uAtmosphereThickness: { value: 50.0 },   // 50km atmosphere (thinner shell)
     uAtmosphereDensity: { value: 0.004 },    // lower density for subtler effect
     uGlobeRadius: { value: earthRadius },
-    uCameraPosition: { value: new THREE.Vector3() }
+    uCameraPosition: { value: new THREE.Vector3() },
+    uSunDirection: { value: new THREE.Vector3(1, 0, 0) } // Default: sun in +X direction
   };
 
   return {
@@ -159,6 +187,24 @@ export function createAtmosphere(scene, earthRadius) {
 
     setColor(color) {
       uniforms.uAtmosphereColor.value.set(color);
+    },
+
+    // Set sun position from lat/lon (where the sun is directly overhead)
+    setSunPosition(lat, lon) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = -lon * Math.PI / 180;
+
+      // Direction FROM center TO sun position on sphere
+      const x = Math.sin(phi) * Math.sin(theta);
+      const y = Math.cos(phi);
+      const z = Math.sin(phi) * Math.cos(theta);
+
+      uniforms.uSunDirection.value.set(x, y, z).normalize();
+    },
+
+    // Set sun direction directly (normalized vec3)
+    setSunDirection(x, y, z) {
+      uniforms.uSunDirection.value.set(x, y, z).normalize();
     },
 
     // Presets
