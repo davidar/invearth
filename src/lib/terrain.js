@@ -382,7 +382,7 @@ function createSphericalTileMesh(tileData) {
   const texture = new THREE.CanvasTexture(satCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
 
-  const material = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshBasicMaterial({
     map: texture,
     side: THREE.DoubleSide,
   });
