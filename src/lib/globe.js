@@ -221,7 +221,7 @@ async function loadNightTexture() {
   return new Promise((resolve, reject) => {
     const loader = new THREE.TextureLoader();
     loader.load(
-      '/textures/earth_nightmap.jpg',
+      `${import.meta.env.BASE_URL}textures/earth_nightmap.jpg`,
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         // Flip horizontally to match the day texture
