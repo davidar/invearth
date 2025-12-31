@@ -12,7 +12,7 @@ const CONFIG = {
     lon: 143.5105863,
   },
   earthRadius: 6371, // km, 1 unit = 1 km
-  terrainRadius: 30, // km radius of local terrain patch
+  // LOD terrain system handles radius automatically
 };
 
 // Scene setup
@@ -33,9 +33,9 @@ const phi = (90 - lat) * (Math.PI / 180);
 // Texture flip + globe rotation cancel out the offset, just negate lon
 const theta = -lon * Math.PI / 180;
 
-// Camera position inside sphere - higher up for clearer view
+// Camera position inside sphere - 50km inside for elevated view
 const cameraPos = new THREE.Vector3();
-cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 5, phi, theta); // 5km inside sphere
+cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 50, phi, theta); // 50km inside sphere
 camera.position.copy(cameraPos);
 
 // Up vector points toward center (inverted gravity)
@@ -70,9 +70,12 @@ async function init() {
     const globe = await createGlobe(CONFIG.earthRadius, false);
     scene.add(globe);
 
-    // Create local terrain from Mapbox
-    const terrain = await createTerrain(CONFIG.location, CONFIG.terrainRadius);
+    // Create LOD terrain from Mapbox
+    const terrain = await createTerrain(CONFIG.location);
     scene.add(terrain);
+    console.log('Terrain children:', terrain.children.length, terrain.children.map(c => c.name));
+
+    // DEBUG test sphere removed - no longer needed
 
     // Setup atmosphere/fog
     const atmosphere = createAtmosphere(scene, CONFIG.earthRadius);
