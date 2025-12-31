@@ -86,8 +86,14 @@ north = east.cross(up).normalize()
 - Much simpler than pitch/yaw: just specify where to look, math handles the rest
 - Smooth interpolation between keyframes using lerp for position and lookAt target
 - Easing via smoothstep function for natural acceleration/deceleration
-- Controls: Space (play/pause), R (reset), 1-7 (jump to keyframe)
+- Controls: Space (play/pause), R (reset), V (record), 1-7 (jump to keyframe)
 - Default tour: Australia → rise → Asia (night) → N.America → S.America → Antarctica → return
+
+### Video Recording
+- WebM recording via browser MediaRecorder API (VP9 codec, 8Mbps)
+- Press V to record one full animation cycle (~43 seconds)
+- Automatically resets to start, plays animation, stops and downloads when cycle completes
+- Canvas captured at 60fps via `captureStream()`
 
 ### Atmosphere at High Altitude
 - Atmosphere shell: inner radius = EARTH_RADIUS - 50km, outer radius = EARTH_RADIUS
@@ -103,6 +109,7 @@ north = east.cross(up).normalize()
 - `src/lib/controls.js` - WASD movement + click-and-drag mouselook
 - `src/lib/atmosphere.js` - Shader-based atmospheric scattering + day/night lighting
 - `src/lib/cameraAnimation.js` - Keyframe-based camera flythrough animation
+- `src/lib/recorder.js` - WebM video recording using MediaRecorder API
 
 ## Gotchas & Lessons Learned
 1. **Offset vs altitude confusion**: LARGER offset = HIGHER altitude (closer to center). See "CRITICAL" section above.

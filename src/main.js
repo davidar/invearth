@@ -3,7 +3,8 @@ import { createGlobe } from './lib/globe.js';
 import { createTerrain } from './lib/terrain.js';
 import { setupControls } from './lib/controls.js';
 import { createAtmosphere } from './lib/atmosphere.js';
-import { createCameraAnimation, KEYFRAMES, applyKeyframe } from './lib/cameraAnimation.js';
+import { createCameraAnimation, KEYFRAMES, applyKeyframe, getTotalDuration } from './lib/cameraAnimation.js';
+import { createRecorder } from './lib/recorder.js';
 
 // Configuration
 const CONFIG = {
@@ -89,6 +90,12 @@ async function init() {
     // Setup camera animation system
     const cameraAnim = createCameraAnimation(camera);
 
+    // Setup video recorder
+    const recorder = createRecorder(renderer.domElement, () => {
+      // Called when recording completes
+      updateInfo();
+    });
+
     // Keyboard shortcuts for keyframes and animation
     document.addEventListener('keydown', (event) => {
       // Number keys 1-7 jump to keyframes
@@ -110,15 +117,39 @@ async function init() {
         cameraAnim.reset();
         updateInfo();
       }
+
+      // V starts recording one full cycle
+      if (event.code === 'KeyV' && !recorder.isRecording) {
+        // Reset to beginning and start recording
+        cameraAnim.reset();
+        recorder.start();
+
+        // Set up callback to stop recording when cycle completes
+        cameraAnim.setOnCycleComplete(() => {
+          recorder.stop();
+        });
+
+        // Start the animation
+        if (!cameraAnim.isAnimating) {
+          cameraAnim.toggleAnimation();
+        }
+        updateInfo();
+      }
     });
 
     function updateInfo() {
       const info = document.getElementById('info');
       if (info) {
-        if (cameraAnim.isAnimating) {
-          info.textContent = 'SPACE: pause | R: reset | 1-7: jump to keyframe';
+        if (recorder.isRecording) {
+          const duration = getTotalDuration();
+          info.textContent = `RECORDING... (${duration}s cycle)`;
+          info.style.color = '#ff4444';
+        } else if (cameraAnim.isAnimating) {
+          info.textContent = 'SPACE: pause | R: reset | V: record | 1-7: keyframes';
+          info.style.color = '';
         } else {
-          info.textContent = 'SPACE: play animation | 1-7: keyframes | WASD/Q/E: manual control';
+          info.textContent = 'SPACE: play | V: record cycle | 1-7: keyframes | WASD/Q/E: move';
+          info.style.color = '';
         }
       }
     }

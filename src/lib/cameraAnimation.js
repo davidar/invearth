@@ -129,6 +129,13 @@ export function applyKeyframe(camera, keyframeIndex) {
 }
 
 /**
+ * Get total duration of one animation cycle
+ */
+export function getTotalDuration() {
+  return KEYFRAMES.reduce((sum, kf) => sum + kf.duration, 0);
+}
+
+/**
  * Create camera animation controller
  */
 export function createCameraAnimation(camera) {
@@ -136,6 +143,7 @@ export function createCameraAnimation(camera) {
   let isAnimating = false;
   let animationTime = 0;
   let animationProgress = 0;
+  let onCycleComplete = null;
 
   // For interpolation
   const startPos = new THREE.Vector3();
@@ -203,6 +211,11 @@ export function createCameraAnimation(camera) {
       // Check if animation complete (loop)
       const totalDuration = KEYFRAMES.reduce((sum, kf) => sum + kf.duration, 0);
       if (animationTime >= totalDuration) {
+        // Fire callback before resetting
+        if (onCycleComplete) {
+          onCycleComplete();
+          onCycleComplete = null; // Only fire once
+        }
         animationTime = 0;
         segmentIndex = 0;
         segmentStart = 0;
@@ -237,7 +250,12 @@ export function createCameraAnimation(camera) {
     },
 
     get isAnimating() { return isAnimating; },
-    get currentKeyframe() { return currentKeyframe; }
+    get currentKeyframe() { return currentKeyframe; },
+
+    // Set callback for when animation completes one cycle
+    setOnCycleComplete(callback) {
+      onCycleComplete = callback;
+    }
   };
 }
 
