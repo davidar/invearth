@@ -2,7 +2,7 @@
 
 An art piece that lets you stand inside Earth and look outward. Continents curve up overhead like a Dyson sphere, city lights glitter across the night sky, and the atmosphere scatters blue at the horizon.
 
-<video src="demo.mp4" controls></video>
+https://github.com/user-attachments/assets/2c589259-2838-498c-ae1e-348bb146ecaf
 
 ## What is this?
 
