@@ -2,6 +2,8 @@
 
 An art piece that lets you stand inside Earth and look outward. Continents curve up overhead like a Dyson sphere, city lights glitter across the night sky, and the atmosphere scatters blue at the horizon.
 
+<video src="demo.mp4" controls></video>
+
 ## What is this?
 
 Imagine Earth turned inside-out. You're standing on the inner surface of a hollow sphere, looking up at continents stretching across the sky. The sun illuminates half the world while cities twinkle on the night side. This is that.
