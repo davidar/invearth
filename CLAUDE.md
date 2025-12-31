@@ -63,12 +63,29 @@ north = east.cross(up).normalize()
 - Currently 3x exaggeration, ocean depth clamped to -50m to prevent deep chasms
 - Positive Z on terrain mesh = toward sphere center = "up" in inverted world
 
+### Atmospheric Scattering (Thin Shell Model)
+- Atmosphere modeled as thin shell clinging to inner surface (not filling entire sphere)
+- Path length calculated via ray-sphere intersection for inner/outer atmosphere bounds
+- Maximum haze at "horizon" angles (tangent path through shell)
+- Clearer for overhead distant terrain (path: local atmo → void → remote atmo)
+- Atmosphere color shifts from blue (day) to dark (night) based on sun position
+
+### Day/Night Lighting
+- `uSunDirection` uniform controls which parts are lit
+- Globe blends between day texture (Mapbox satellite) and night texture (city lights)
+- Night lights from Solar System Scope (CC BY 4.0): `public/textures/earth_nightmap.jpg`
+- Day factor calculated as `smoothstep(-0.1, 0.2, dot(surfaceNormal, sunDirection))`
+- **IMPORTANT**: Atmosphere scattering uses BOTH local and remote day factors
+  - Local atmosphere (near camera) contributes blue scatter even when viewing night side
+  - This prevents the night side from "punching a hole" through the atmosphere
+  - Combined factor = average of local and remote day factors
+
 ## File Structure
 - `src/main.js` - Scene setup, camera positioning, lighting config
 - `src/lib/terrain.js` - Quadtree LOD terrain with Mapbox tiles
-- `src/lib/globe.js` - Inverted sphere with Mapbox satellite texture (z3 tiles → equirectangular)
-- `src/lib/controls.js` - Click-and-drag mouselook (Flatpak compatible)
-- `src/lib/atmosphere.js` - Fog/atmosphere effects
+- `src/lib/globe.js` - Inverted sphere with day/night textures (Mapbox satellite + night lights)
+- `src/lib/controls.js` - WASD movement + click-and-drag mouselook
+- `src/lib/atmosphere.js` - Shader-based atmospheric scattering + day/night lighting
 
 ## Gotchas & Lessons Learned
 1. **Offset vs altitude confusion**: LARGER offset = HIGHER altitude (closer to center). See "CRITICAL" section above.
@@ -80,6 +97,7 @@ north = east.cross(up).normalize()
 7. **Color consistency**: Use same imagery source (Mapbox) for both globe and terrain tiles
 8. **Material consistency**: Both globe and terrain use MeshBasicMaterial (no lighting) for consistent brightness
 9. **Ring-based LOD causes z-fighting**: Use quadtree instead - tiles replace parents, never overlap
+10. **Day/night atmosphere**: When viewing night side from day side, atmosphere must account for BOTH ends of the path. Local sunlit atmosphere still scatters blue even when looking at dark terrain.
 
 ## Current Location
 Cape Otway Lighthouse, Victoria, Australia
@@ -88,11 +106,12 @@ Cape Otway Lighthouse, Victoria, Australia
 
 ## Potential Next Steps
 - ~~Foveated/multi-zoom terrain~~ ✓ Done (quadtree LOD)
-- Movement controls (WASD fly around)
+- ~~Movement controls~~ ✓ Done (WASD + Q/E altitude + mouselook)
+- ~~Atmosphere rendering~~ ✓ Done (shader-based thin shell scattering)
+- ~~Time of day lighting~~ ✓ Done (day/night with city lights)
 - Dynamic tile loading as you move
-- Skybox or better atmosphere rendering
-- Time of day lighting
 - Clouds layer
+- Animated day/night cycle (sun rotation over time)
 
 ## Environment
 - Mapbox token in `.env` as `VITE_MAPBOX_TOKEN`
