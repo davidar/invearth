@@ -33,9 +33,9 @@ const phi = (90 - lat) * (Math.PI / 180);
 // Texture flip + globe rotation cancel out the offset, just negate lon
 const theta = -lon * Math.PI / 180;
 
-// Camera position inside sphere - 50km inside for elevated view
+// Camera position inside sphere - 10km inside (2km above terrain at 8km offset)
 const cameraPos = new THREE.Vector3();
-cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 50, phi, theta); // 50km inside sphere
+cameraPos.setFromSphericalCoords(CONFIG.earthRadius - 10, phi, theta); // 10km inside sphere
 camera.position.copy(cameraPos);
 
 // Up vector points toward center (inverted gravity)

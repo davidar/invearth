@@ -8,9 +8,24 @@ An art piece showing Earth from the inside - standing on a sphere looking outwar
 ### Inverted World Coordinate System
 - Camera is INSIDE the sphere (radius - offset)
 - "Up" points TOWARD sphere center (inverted gravity)
-- "Down" points AWAY from center (outward)
-- Terrain must be positioned INSIDE the globe surface to be visible (between camera and globe)
+- "Down" points AWAY from center (outward toward globe surface)
+- We look OUTWARD at the inner surface of the sphere (the "ground" curves up around us)
 - Globe uses `BackSide` rendering so we see the texture from inside
+
+### CRITICAL: Radius and "Altitude" in Inverted World
+**This is confusing - pay attention!**
+- Globe surface is at `EARTH_RADIUS` (6371 km)
+- Objects INSIDE the sphere have `radius = EARTH_RADIUS - offset`
+- **LARGER offset = SMALLER radius = CLOSER to center = HIGHER altitude**
+- **SMALLER offset = LARGER radius = CLOSER to globe surface = LOWER altitude**
+
+Example with TERRAIN_OFFSET=8 and camera at 10km offset:
+- Globe: radius 6371 (the outer shell we're inside)
+- Terrain: radius 6363 (8km inside globe)
+- Camera: radius 6361 (10km inside globe, 2km "above" terrain)
+- Camera has LARGER offset, so it's CLOSER to center, so it's ABOVE terrain ✓
+
+**Common mistake**: Thinking "smaller offset = higher up". NO! Smaller offset = larger radius = closer to globe = underground!
 
 ### Coordinate Conversions
 ```javascript
@@ -18,7 +33,12 @@ An art piece showing Earth from the inside - standing on a sphere looking outwar
 phi = (90 - lat) * (Math.PI / 180)
 theta = -lon * Math.PI / 180  // negative because of texture flip + globe rotation
 
-// Position on sphere
+// Position on sphere - THREE.js convention (IMPORTANT: don't swap x/z!)
+x = radius * Math.sin(phi) * Math.sin(theta)
+y = radius * Math.cos(phi)
+z = radius * Math.sin(phi) * Math.cos(theta)
+
+// Or use the helper:
 position.setFromSphericalCoords(radius, phi, theta)
 
 // Local directions at a point
@@ -27,13 +47,15 @@ east = up.cross(worldNorth).normalize()
 north = east.cross(up).normalize()
 ```
 
-### Terrain System
+### Terrain System (Quadtree LOD)
+- Uses quadtree subdivision: coarse tiles (z6) far away, subdivides to fine tiles (z14) near camera
+- Subdivision rule: if `distance < tileSize * SUBDIVISION_FACTOR`, subdivide into 4 children
+- Current settings: MIN_ZOOM=6, MAX_ZOOM=14, SUBDIVISION_FACTOR=3.0, TERRAIN_OFFSET=8km
+- Only renders leaf tiles (no overlap, no z-fighting between LOD levels)
 - Fetches Mapbox terrain-RGB (heightmap) and satellite tiles
-- Auto-calculates zoom level based on terrain radius
-- Composites multiple tiles into single texture/heightmap
-- Terrain positioned at TILE GRID CENTER (not camera position)
-- Camera position only determines which tiles to load
-- Terrain radius currently 30km, positioned 3km inside globe surface
+- Each tile is a spherical mesh curving to match inside of globe
+- Skirts on tile edges hide seams between adjacent tiles
+- Camera at 10km offset (2km above terrain) for good detail view
 
 ### Elevation
 - Mapbox terrain-RGB decoded: `elevation = -10000 + (R*256*256 + G*256 + B) * 0.1`
@@ -42,18 +64,22 @@ north = east.cross(up).normalize()
 - Positive Z on terrain mesh = toward sphere center = "up" in inverted world
 
 ## File Structure
-- `src/main.js` - Scene setup, camera positioning, config
-- `src/lib/terrain.js` - Mapbox tile fetching, stitching, mesh building
-- `src/lib/globe.js` - Inverted sphere with Blue Marble texture
+- `src/main.js` - Scene setup, camera positioning, lighting config
+- `src/lib/terrain.js` - Quadtree LOD terrain with Mapbox tiles
+- `src/lib/globe.js` - Inverted sphere with Mapbox satellite texture (z3 tiles → equirectangular)
 - `src/lib/controls.js` - Click-and-drag mouselook (Flatpak compatible)
 - `src/lib/atmosphere.js` - Fog/atmosphere effects
 
 ## Gotchas & Lessons Learned
-1. **Terrain alignment**: Position terrain at tile grid center, NOT camera position. Camera loc just determines tile fetching.
-2. **Globe clipping**: Terrain must be several km inside globe surface or they clip through each other
-3. **Elevation direction**: In inverted world, positive elevation should push vertices TOWARD center (positive Z after orientation)
-4. **Pointer lock**: Doesn't work reliably in Flatpak Chrome - use click-and-drag instead
-5. **Tile coordinate system**: Tile Y increases SOUTHWARD (opposite of lat)
+1. **Offset vs altitude confusion**: LARGER offset = HIGHER altitude (closer to center). See "CRITICAL" section above.
+2. **THREE.js spherical coords**: x = r*sin(φ)*sin(θ), z = r*sin(φ)*cos(θ). Don't swap them!
+3. **Globe clipping**: Terrain must be several km inside globe surface or they z-fight
+4. **Elevation direction**: In inverted world, SUBTRACT elevation from radius (higher terrain = smaller radius = closer to center)
+5. **Pointer lock**: Doesn't work reliably in Flatpak Chrome - use click-and-drag instead
+6. **Tile coordinate system**: Tile Y increases SOUTHWARD (opposite of lat)
+7. **Color consistency**: Use same imagery source (Mapbox) for both globe and terrain tiles
+8. **Material consistency**: Both globe and terrain use MeshBasicMaterial (no lighting) for consistent brightness
+9. **Ring-based LOD causes z-fighting**: Use quadtree instead - tiles replace parents, never overlap
 
 ## Current Location
 Cape Otway Lighthouse, Victoria, Australia
@@ -61,10 +87,10 @@ Cape Otway Lighthouse, Victoria, Australia
 - lon: 143.5105863
 
 ## Potential Next Steps
-- Foveated/multi-zoom terrain (high-res near camera, lower-res far away)
-- Skybox or better atmosphere rendering
-- Movement controls (walk around)
+- ~~Foveated/multi-zoom terrain~~ ✓ Done (quadtree LOD)
+- Movement controls (WASD fly around)
 - Dynamic tile loading as you move
+- Skybox or better atmosphere rendering
 - Time of day lighting
 - Clouds layer
 

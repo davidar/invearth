@@ -8,7 +8,7 @@ const EARTH_RADIUS = 6371;
 
 // Quadtree LOD configuration
 const MIN_ZOOM = 6;   // Coarsest level (largest tiles)
-const MAX_ZOOM = 12;  // Finest level (smallest tiles, near camera)
+const MAX_ZOOM = 14;  // Finest level (smallest tiles, near camera)
 
 // How far inside the globe surface to place terrain (km)
 // Needs enough gap to avoid z-fighting with globe at tile edges
@@ -17,7 +17,7 @@ const TERRAIN_OFFSET = 8;
 // Subdivision threshold multiplier
 // Tile is subdivided if: distance < tileSize * SUBDIVISION_FACTOR
 // Higher = more aggressive subdivision = more tiles
-const SUBDIVISION_FACTOR = 2.0;
+const SUBDIVISION_FACTOR = 3.0;
 
 // Maximum radius from camera to load terrain (km)
 const MAX_TERRAIN_RADIUS = 800;
